@@ -161,7 +161,7 @@
       transform:translateY(0);
     }
 
-    .hero,.device-panel,.accounts-wrap,.bottom-actions,.error,.empty{
+    .hero,.device-panel,.accounts-wrap,.bottom-actions,.error,.empty,.logs-section{
       margin:16px 12px;
     }
 
@@ -455,6 +455,94 @@
       padding-top:8px;
     }
 
+    /* ==================== LOGS API - ẨN SCROLLBAR NHƯNG VẪN CUỘN ĐƯỢC ==================== */
+    .logs-section {
+      margin: 16px 12px;
+    }
+
+    .logs-title {
+      font-size: 20px;
+      font-weight: 800;
+      margin: 0 0 12px 4px;
+      color: var(--cyan);
+    }
+
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(12,18,34,.94), rgba(10,15,29,.92));
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      padding: 4px;
+    }
+
+    /* Ẩn thanh cuộn trên mọi thiết bị nhưng vẫn cho cuộn */
+    .table-wrapper::-webkit-scrollbar {
+      display: none;   /* Ẩn thanh cuộn Chrome, Safari, Edge */
+    }
+
+    .table-wrapper {
+      -ms-overflow-style: none;  /* Ẩn thanh cuộn IE và Edge cũ */
+      scrollbar-width: none;     /* Ẩn thanh cuộn Firefox */
+    }
+
+    .log-table {
+      width: 100%;
+      min-width: 620px;           /* Giữ khả năng cuộn ngang */
+      border-collapse: collapse;
+    }
+
+    .log-table th {
+      background: rgba(97,231,255,.08);
+      padding: 14px 12px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      white-space: nowrap;
+    }
+
+    .log-table td {
+      padding: 14px 12px;
+      border-top: 1px solid rgba(255,255,255,.06);
+      font-size: 14px;
+      word-break: break-all;
+      vertical-align: middle;
+    }
+
+    .log-table tr:hover {
+      background: rgba(97,231,255,.05);
+    }
+
+    .log-time {
+      color: var(--green);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .log-status {
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      display: inline-block;
+      white-space: nowrap;
+    }
+
+    .status-success { 
+      background: rgba(43,255,177,.15); 
+      color: #2bffb1; 
+    }
+    
+    .status-error { 
+      background: rgba(255,80,80,.15); 
+      color: #ff8080; 
+    }
+
     .site-footer{
       margin:26px 12px 10px;
       text-align:center;
@@ -516,29 +604,24 @@
     }
 
     @media (max-width: 720px){
-      .loader-box{padding:26px 18px 22px}
-      .hero,.device-panel,.accounts-wrap,.bottom-actions,.error,.empty{margin-left:10px;margin-right:10px}
+      .hero,.device-panel,.accounts-wrap,.bottom-actions,.error,.empty,.logs-section{margin-left:10px;margin-right:10px}
       .hero{padding:18px}
       .device-panel{padding:16px}
       .accounts-wrap{grid-template-columns:1fr}
       .row{grid-template-columns:1fr auto;align-items:end}
-      .copy-btn{
-        min-width:90px;
-        width:auto;
-        justify-self:end;
-      }
+      .copy-btn{min-width:90px; width:auto; justify-self:end;}
       .meta-grid{grid-template-columns:1fr}
       .action-btn{width:100%; min-width:unset;}
-      .site-footer{margin-left:10px;margin-right:10px}
+      .log-table th, .log-table td {
+        padding: 13px 10px;
+        font-size: 14px;
+      }
     }
 
     @media (max-width: 430px){
-      html,body{overflow-x:hidden;overscroll-behavior-x:none}
       .app{width:100vw;padding-left:0;padding-right:0}
-      .hero,.device-panel,.accounts-wrap,.bottom-actions,.error,.empty{margin-left:8px;margin-right:8px}
-      .site-footer{margin-left:8px;margin-right:8px}
+      .hero,.device-panel,.accounts-wrap,.bottom-actions,.error,.empty,.logs-section{margin-left:8px;margin-right:8px}
     }
-
   </style>
 </head>
 <body>
@@ -574,6 +657,25 @@
     </section>
 
     <section class="accounts-wrap" id="accountsWrap"></section>
+
+    <!-- LOGS API - ẨN SCROLLBAR VÀ XÓA DÒNG HƯỚNG DẪN -->
+    <section class="logs-section">
+      <h2 class="logs-title">📋 Logs API gần đây</h2>
+      <div class="table-wrapper">
+        <table class="log-table" id="logTable">
+          <thead>
+            <tr>
+              <th>Thời gian</th>
+              <th>Trạng thái</th>
+              <th>Số lượng ID</th>
+              <th>User-Agent</th>
+            </tr>
+          </thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </section>
+
     <div class="error" id="errorBox" style="display:none;"></div>
   </main>
 
@@ -591,6 +693,9 @@
     const deviceInfo = document.getElementById("deviceInfo");
     const errorBox = document.getElementById("errorBox");
     const loaderStatus = document.getElementById("loaderStatus");
+    const logBody = document.getElementById("logBody");
+
+    let apiLogs = [];
 
     function escapeHtml(str) {
       return String(str)
@@ -637,12 +742,9 @@
       if (/tablet|ipad/i.test(ua)) deviceType = "Tablet";
       else if (/mobi|android|iphone/i.test(ua)) deviceType = "Mobile";
 
-      const osLabel = osInfo.version !== "Không rõ"
-        ? `${osInfo.os} (${osInfo.version})`
-        : osInfo.os;
-      const browserLabel = browserInfo.version !== "Không rõ"
-        ? `${browserInfo.name} ${browserInfo.version}`
-        : browserInfo.name;
+      const osLabel = osInfo.version !== "Không rõ" ? `${osInfo.os} (${osInfo.version})` : osInfo.os;
+      const browserLabel = browserInfo.version !== "Không rõ" ? `${browserInfo.name} ${browserInfo.version}` : browserInfo.name;
+
       return {
         "Loại thiết bị": deviceType,
         "Địa chỉ IP": ipText,
@@ -680,7 +782,6 @@
       document.querySelectorAll(".copy-btn").forEach(btn => {
         btn.addEventListener("click", async () => {
           const raw = decodeURIComponent(btn.dataset.copy || "");
-          const oldText = "Copy";
           try {
             await navigator.clipboard.writeText(raw);
           } catch {
@@ -691,6 +792,7 @@
             document.execCommand("copy");
             document.body.removeChild(area);
           }
+          const oldText = btn.textContent;
           btn.textContent = "Đã copy";
           btn.classList.add("copied");
           setTimeout(() => {
@@ -755,6 +857,34 @@
       bindCopyButtons();
     }
 
+    function addApiLog(status, count = 0) {
+      const now = new Date();
+      const logEntry = {
+        time: now.toLocaleString("vi-VN", { hour12: false }),
+        status: status,
+        count: count,
+        userAgent: navigator.userAgent.length > 90 ? navigator.userAgent.substring(0, 87) + "..." : navigator.userAgent
+      };
+      apiLogs.unshift(logEntry);
+      if (apiLogs.length > 8) apiLogs.pop();
+      renderLogs();
+    }
+
+    function renderLogs() {
+      logBody.innerHTML = apiLogs.map(log => `
+        <tr>
+          <td class="log-time">${escapeHtml(log.time)}</td>
+          <td>
+            <span class="log-status ${log.status === "Thành công" ? "status-success" : "status-error"}">
+              ${escapeHtml(log.status)}
+            </span>
+          </td>
+          <td><strong>${log.count}</strong></td>
+          <td style="font-size:13px; color:var(--muted); line-height:1.4;">${escapeHtml(log.userAgent)}</td>
+        </tr>
+      `).join("");
+    }
+
     async function fetchAccounts() {
       const res = await fetch(API_URL, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -791,7 +921,6 @@
 
       const timer = setInterval(() => {
         if (loadingDone) return;
-
         if (!readyForFinish) {
           progress += Math.random() * 2.8 + 0.9;
           if (progress > 88) progress = 88;
@@ -821,25 +950,29 @@
       await wait(400);
       ip = await fetchIp();
 
+      const tempInfo = getDeviceInfo(ip);
+      renderDeviceInfo(tempInfo);
+      startLiveClock();
+
       await wait(300);
       try {
         apiData = await fetchAccounts();
-      } catch {
+        if (apiData && apiData.status === "ok") {
+          renderAccounts(apiData.accounts || []);
+          addApiLog("Thành công", (apiData.accounts || []).length);
+        } else {
+          addApiLog("Lỗi", 0);
+          errorBox.style.display = "block";
+          errorBox.textContent = "API trả về dữ liệu không đúng định dạng mong đợi.";
+        }
+      } catch (err) {
+        addApiLog("Lỗi", 0);
         errorBox.style.display = "block";
-        errorBox.textContent = "Không tải được dữ liệu từ API. Có thể API đang chặn CORS trên trình duyệt hoặc máy chủ đang lỗi.";
+        errorBox.textContent = "Không tải được dữ liệu từ API.";
       }
 
-      const info = getDeviceInfo(ip);
-      renderDeviceInfo(info);
-      startLiveClock();
-
-      if (apiData && apiData.status === "ok") {
-        renderAccounts(apiData.accounts || []);
-      } else if (apiData) {
-        errorBox.style.display = "block";
-        errorBox.textContent = "API trả về dữ liệu không đúng định dạng mong đợi.";
-      }
-
+      const finalInfo = getDeviceInfo(ip);
+      renderDeviceInfo(finalInfo);
       readyForFinish = true;
     }
 
